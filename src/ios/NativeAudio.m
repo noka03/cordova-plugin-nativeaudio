@@ -88,8 +88,25 @@ NSString* INFO_VOLUME_CHANGED = @"(NATIVE AUDIO) Volume changed.";
             NSString* path = [NSString stringWithFormat:@"%@", assetPath];
             NSString* pathFromWWW = [NSString stringWithFormat:@"%@/%@", basePath, assetPath];
 
+            NSLog(@"pathFromWWW %@", pathFromWWW);
+            
+            
+            NSString* appId = [command argumentAtIndex:1];
+            NSURL* storageDirectory = [NativeAudio getStorageDirectory];
+            NSURL *appPath = [storageDirectory URLByAppendingPathComponent:appId];
+            
+            NSString *appPathStr = appPath.absoluteString;
+            
+            NSString *haystackPrefix = @"file://";
+            NSRange needleRange = NSMakeRange(haystackPrefix.length, appPathStr.length - haystackPrefix.length);
+            NSString *needle = [appPathStr substringWithRange:needleRange];
+            
+            
+            NSLog(@"needle %@", needle);
+            
+          
             if ([[NSFileManager defaultManager] fileExistsAtPath : path]) {
-
+                NSLog(@"playing from path %@", path);
 
                 NSURL *pathURL = [NSURL fileURLWithPath : path];
                 CFURLRef soundFileURLRef = (CFURLRef) CFBridgingRetain(pathURL);
@@ -101,12 +118,24 @@ NSString* INFO_VOLUME_CHANGED = @"(NATIVE AUDIO) Volume changed.";
                 [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: RESULT] callbackId:callbackId];
 
             } else if ([[NSFileManager defaultManager] fileExistsAtPath : pathFromWWW]) {
+                NSLog(@"playing from pathFromWWW %@", pathFromWWW);
                 NSURL *pathURL = [NSURL fileURLWithPath : pathFromWWW];
                 CFURLRef        soundFileURLRef = (CFURLRef) CFBridgingRetain(pathURL);
                 SystemSoundID soundID;
                 AudioServicesCreateSystemSoundID(soundFileURLRef, & soundID);
                 audioMapping[audioID] = [NSNumber numberWithInt:soundID];
 
+                NSString *RESULT = [NSString stringWithFormat:@"%@ (%@)", INFO_ASSET_LOADED, audioID];
+                [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: RESULT] callbackId:callbackId];
+                
+            } else if ([[NSFileManager defaultManager] fileExistsAtPath : needle]) {
+                NSLog(@"playing from needle %@", needle);
+                NSURL *pathURL = [NSURL fileURLWithPath : needle];
+                CFURLRef        soundFileURLRef = (CFURLRef) CFBridgingRetain(pathURL);
+                SystemSoundID soundID;
+                AudioServicesCreateSystemSoundID(soundFileURLRef, & soundID);
+                audioMapping[audioID] = [NSNumber numberWithInt:soundID];
+                
                 NSString *RESULT = [NSString stringWithFormat:@"%@ (%@)", INFO_ASSET_LOADED, audioID];
                 [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: RESULT] callbackId:callbackId];
 
@@ -475,5 +504,13 @@ static void (mySystemSoundCompletionProc)(SystemSoundID ssID,void* clientData)
         }
     }];
 }
+    
++ (NSURL*) getStorageDirectory {
+        NSFileManager* fm = [NSFileManager defaultManager];
+        NSArray *URLs = [fm URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask];
+        NSURL *libraryDirectoryUrl = [URLs objectAtIndex:0];
+        return [libraryDirectoryUrl URLByAppendingPathComponent:@"NoCloud"];
+}
 
 @end
+
