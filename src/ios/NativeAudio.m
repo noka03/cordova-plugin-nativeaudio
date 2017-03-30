@@ -30,24 +30,6 @@ NSString* INFO_VOLUME_CHANGED = @"(NATIVE AUDIO) Volume changed.";
     self.fadeMusic = NO;
 
     AudioSessionInitialize(NULL, NULL, nil , nil);
-    AVAudioSession *session = [AVAudioSession sharedInstance];
-    // we activate the audio session after the options to mix with others is set
-    [session setActive: NO error: nil];
-    NSError *setCategoryError = nil;
-
-    // Allows the application to mix its audio with audio from other apps.
-    if (![session setCategory:AVAudioSessionCategoryAmbient
-                  withOptions:AVAudioSessionCategoryOptionMixWithOthers
-                        error:&setCategoryError]) {
-
-        NSLog (@"Error setting audio session category.");
-        return;
-    }
-
-    [session setActive: YES error: nil];
-    [session setCategory:AVAudioSessionCategoryAmbient
-                                     withOptions:AVAudioSessionCategoryOptionMixWithOthers
-                                           error:nil];
     
 }
 
@@ -78,6 +60,14 @@ NSString* INFO_VOLUME_CHANGED = @"(NATIVE AUDIO) Volume changed.";
     NSString *audioID = [arguments objectAtIndex:0];
     NSString *assetPath = [arguments objectAtIndex:1];
 
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    // we activate the audio session after the options to mix with others is set
+    [session setActive: NO error: nil];
+    [session setCategory:AVAudioSessionCategoryAmbient
+             withOptions:AVAudioSessionCategoryOptionDuckOthers
+                   error:nil];
+    [session setActive: YES error: nil];
+    
     if(audioMapping == nil) {
         audioMapping = [NSMutableDictionary dictionary];
     }
@@ -164,6 +154,14 @@ NSString* INFO_VOLUME_CHANGED = @"(NATIVE AUDIO) Volume changed.";
     NSString *audioID = [arguments objectAtIndex:0];
     NSString *assetPath = [arguments objectAtIndex:1];
 
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    // we activate the audio session after the options to mix with others is set
+    [session setActive: NO error: nil];
+    [session setCategory:AVAudioSessionCategoryAmbient
+             withOptions:AVAudioSessionCategoryOptionDuckOthers
+                   error:nil];
+    [session setActive: YES error: nil];
+    
     NSNumber *volume = nil;
     if ( [arguments count] > 2 ) {
         volume = [arguments objectAtIndex:2];
@@ -201,7 +199,23 @@ NSString* INFO_VOLUME_CHANGED = @"(NATIVE AUDIO) Volume changed.";
     [self.commandDelegate runInBackground:^{
         if (existingReference == nil) {
             NSString* basePath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@"www"];
-            NSString* path = [NSString stringWithFormat:@"%@/%@", basePath, assetPath];
+            NSString* path = [NSString stringWithFormat:@"%@", assetPath];
+            NSString* pathFromWWW = [NSString stringWithFormat:@"%@/%@", basePath, assetPath];
+            
+            NSLog(@"pathFromWWW %@", pathFromWWW);
+            
+            NSString* appId = [command argumentAtIndex:1];
+            NSURL* storageDirectory = [NativeAudio getStorageDirectory];
+            NSURL *appPath = [storageDirectory URLByAppendingPathComponent:appId];
+            
+            NSString *appPathStr = appPath.absoluteString;
+            
+            NSString *haystackPrefix = @"file://";
+            NSRange needleRange = NSMakeRange(haystackPrefix.length, appPathStr.length - haystackPrefix.length);
+            NSString *needle = [appPathStr substringWithRange:needleRange];
+            
+            
+            NSLog(@"needle %@", needle);
 
             if ([[NSFileManager defaultManager] fileExistsAtPath : path]) {
                 NativeAudioAsset* asset = [[NativeAudioAsset alloc] initWithPath:path
@@ -214,6 +228,34 @@ NSString* INFO_VOLUME_CHANGED = @"(NATIVE AUDIO) Volume changed.";
                 NSString *RESULT = [NSString stringWithFormat:@"%@ (%@)", INFO_ASSET_LOADED, audioID];
                 [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: RESULT] callbackId:callbackId];
 
+            } else if ([[NSFileManager defaultManager] fileExistsAtPath : pathFromWWW]) {
+                NSLog(@"playing from pathFromWWW %@", pathFromWWW);
+                
+                NativeAudioAsset* asset = [[NativeAudioAsset alloc] initWithPath:pathFromWWW
+                                                                      withVoices:voices
+                                                                      withVolume:volume
+                                                                   withFadeDelay:delay];
+                
+                
+                audioMapping[audioID] = asset;
+                
+                NSString *RESULT = [NSString stringWithFormat:@"%@ (%@)", INFO_ASSET_LOADED, audioID];
+                [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: RESULT] callbackId:callbackId];
+                
+            } else if ([[NSFileManager defaultManager] fileExistsAtPath : needle]) {
+                NSLog(@"playing from needle %@", needle);
+                
+                NativeAudioAsset* asset = [[NativeAudioAsset alloc] initWithPath:needle
+                                                                      withVoices:voices
+                                                                      withVolume:volume
+                                                                   withFadeDelay:delay];
+                
+                audioMapping[audioID] = asset;
+                
+                NSString *RESULT = [NSString stringWithFormat:@"%@ (%@)", INFO_ASSET_LOADED, audioID];
+                [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString: RESULT] callbackId:callbackId];
+
+                
             } else {
                 NSString *RESULT = [NSString stringWithFormat:@"%@ (%@)", ERROR_ASSETPATH_INCORRECT, assetPath];
                 [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: RESULT] callbackId:callbackId];
@@ -233,6 +275,9 @@ NSString* INFO_VOLUME_CHANGED = @"(NATIVE AUDIO) Volume changed.";
     NSArray* arguments = command.arguments;
     NSString *audioID = [arguments objectAtIndex:0];
 
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    // we activate the audio session after the options to mix with others is set
+    
     [self.commandDelegate runInBackground:^{
         if (audioMapping) {
 
@@ -280,6 +325,10 @@ NSString* INFO_VOLUME_CHANGED = @"(NATIVE AUDIO) Volume changed.";
     NSArray* arguments = command.arguments;
     NSString *audioID = [arguments objectAtIndex:0];
 
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    // we activate the audio session after the options to mix with others is set
+    [session setActive: NO error: nil];
+    
     if ( audioMapping ) {
         NSObject* asset = audioMapping[audioID];
 
@@ -386,6 +435,9 @@ NSString* INFO_VOLUME_CHANGED = @"(NATIVE AUDIO) Volume changed.";
         NSString *RESULT = [NSString stringWithFormat:@"%@ (%@)", ERROR_REFERENCE_MISSING, audioID];
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString: RESULT] callbackId:callbackId];
     }
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    [session setActive: NO error: nil];
+
 
 }
 
@@ -516,5 +568,6 @@ static void (mySystemSoundCompletionProc)(SystemSoundID ssID,void* clientData)
 }
 
 @end
+
 
 
